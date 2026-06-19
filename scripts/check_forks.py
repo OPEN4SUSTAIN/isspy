@@ -92,7 +92,7 @@ def main():
             lines.append(f"*{len(new_issues)} new issue(s)*\n")
             for i in new_issues:
                 created_at = i['created_at'].replace('T', ' ').replace('Z', ' UTC')
-                lines.append(f"- [#{i['number']} {i['title']}]({i['html_url']}) - *{created_at}*")
+                lines.append(f"- [Issue {i['number']}: {i['title']}]({i['html_url']}) - *{created_at}*")
             lines.append("")
 
         state[upstream] = now
