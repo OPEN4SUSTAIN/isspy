@@ -1,0 +1,95 @@
+import os
+import json
+import urllib.request
+import urllib.error
+from datetime import datetime, timezone
+
+TOKEN = os.environ["GH_TOKEN"]
+STATE_FILE = "state.json"
+
+def gh(path):
+    req = urllib.request.Request(
+        f"https://api.github.com{path}",
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28"
+        }
+    )
+    with urllib.request.urlopen(req) as res:
+        return json.loads(res.read())
+
+def get_all_forks():
+    forks, page = [], 1
+    while True:
+        repos = gh(f"/user/repos?type=forks&per_page=100&page={page}")
+        if not repos:
+            break
+        forks.extend(repos)
+        if len(repos) < 100:
+            break
+        page += 1
+    return forks
+
+def get_new_issues(owner, repo, since):
+    try:
+        issues = gh(f"/repos/{owner}/{repo}/issues?state=open&since={since}&per_page=50")
+        return [i for i in issues if "pull_request" not in i]
+    except urllib.error.HTTPError as e:
+        if e.code in (404, 403):
+            return []
+        raise
+
+def main():
+    state = {}
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE) as f:
+            state = json.load(f)
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    forks = get_all_forks()
+
+    lines = [f"# isspy report", f"**Run:** {now} | **Forks scanned:** {len(forks)}\n"]
+    found_any = False
+
+    for fork in forks:
+        parent = fork.get("parent")
+        if not parent:
+            try:
+                full = gh(f"/repos/{fork['full_name']}")
+                parent = full.get("parent")
+            except Exception:
+                continue
+        if not parent:
+            continue
+
+        upstream = parent["full_name"]
+        since = state.get(upstream, "2024-01-01T00:00:00Z")
+        new_issues = get_new_issues(parent["owner"]["login"], parent["name"], since)
+
+        if new_issues:
+            found_any = True
+            lines.append(f"## [{upstream}](https://github.com/{upstream})")
+            lines.append(f"*{len(new_issues)} new issue(s)*\n")
+            for i in new_issues:
+                lines.append(f"- [#{i['number']} {i['title']}]({i['html_url']})")
+            lines.append("")
+
+        state[upstream] = now
+
+    if not found_any:
+        lines.append("_No new issues in any upstream repo._")
+
+    report = "\n".join(lines)
+    print(report)
+
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a") as f:
+            f.write(report)
+
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+
+if __name__ == "__main__":
+    main()
