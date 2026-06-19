@@ -40,6 +40,25 @@ def get_new_issues(owner, repo, since):
             return []
         raise
 
+def create_issue(title, body):
+    repo_owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "Demiserular")
+    repo_name = os.environ.get("GITHUB_REPOSITORY_NAME", "isspy")
+    if "/" in os.environ.get("GITHUB_REPOSITORY", ""):
+        repo_owner, repo_name = os.environ["GITHUB_REPOSITORY"].split("/")
+    
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{repo_owner}/{repo_name}/issues",
+        data=json.dumps({"title": title, "body": body}).encode(),
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28"
+        },
+        method="POST"
+    )
+    with urllib.request.urlopen(req) as res:
+        return json.loads(res.read())
+
 def main():
     state = {}
     if os.path.exists(STATE_FILE):
@@ -88,6 +107,12 @@ def main():
     if summary:
         with open(summary, "a") as f:
             f.write(report)
+
+    if found_any:
+        try:
+            create_issue(f"isspy report - {now}", report)
+        except Exception as e:
+            print(f"Failed to create issue: {e}")
 
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
