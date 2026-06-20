@@ -92,7 +92,10 @@ def main():
             lines.append(f"*{len(new_issues)} new issue(s)*\n")
             for i in new_issues:
                 created_at = i['created_at'].replace('T', ' ').replace('Z', ' UTC')
-                lines.append(f"- [Issue {i['number']}: {i['title']}]({i['html_url']}) - *{created_at}*")
+                obfuscated_url = i['html_url'].replace("github.com", "github\u200b.com")
+                lines.append(
+                    f"- Issue {i['number']}: {i['title']} - [{obfuscated_url}](https://href.li/?{i['html_url']}) - *{created_at}*"
+                )
             lines.append("")
 
         state[upstream] = now
