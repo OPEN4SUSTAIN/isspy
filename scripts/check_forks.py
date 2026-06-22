@@ -31,10 +31,19 @@ def get_all_forks():
         page += 1
     return forks
 
-def get_new_issues(owner, repo, since):
+def get_collaborators(owner, repo):
+    try:
+        collaborators = gh(f"/repos/{owner}/{repo}/collaborators?per_page=100")
+        return {c["login"] for c in collaborators}
+    except urllib.error.HTTPError as e:
+        if e.code in (404, 403):
+            return set()
+        raise
+
+def get_new_issues(owner, repo, since, collaborators):
     try:
         issues = gh(f"/repos/{owner}/{repo}/issues?state=open&since={since}&per_page=50")
-        return [i for i in issues if "pull_request" not in i]
+        return [i for i in issues if "pull_request" not in i and i["user"]["login"] in collaborators]
     except urllib.error.HTTPError as e:
         if e.code in (404, 403):
             return []
@@ -84,7 +93,8 @@ def main():
 
         upstream = parent["full_name"]
         since = state.get(upstream, "2024-01-01T00:00:00Z")
-        new_issues = get_new_issues(parent["owner"]["login"], parent["name"], since)
+        collaborators = get_collaborators(parent["owner"]["login"], parent["name"])
+        new_issues = get_new_issues(parent["owner"]["login"], parent["name"], since, collaborators)
 
         if new_issues:
             found_any = True
