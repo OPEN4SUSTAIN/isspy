@@ -40,10 +40,10 @@ def get_collaborators(owner, repo):
             return set()
         raise
 
-def get_new_issues(owner, repo, since, collaborators):
+def get_new_issues(owner, repo, since):
     try:
         issues = gh(f"/repos/{owner}/{repo}/issues?state=open&since={since}&per_page=50")
-        return [i for i in issues if "pull_request" not in i and i["user"]["login"] in collaborators]
+        return [i for i in issues if "pull_request" not in i]
     except urllib.error.HTTPError as e:
         if e.code in (404, 403):
             return []
@@ -94,7 +94,7 @@ def main():
         upstream = parent["full_name"]
         since = state.get(upstream, "2024-01-01T00:00:00Z")
         collaborators = get_collaborators(parent["owner"]["login"], parent["name"])
-        new_issues = get_new_issues(parent["owner"]["login"], parent["name"], since, collaborators)
+        new_issues = get_new_issues(parent["owner"]["login"], parent["name"], since)
 
         if new_issues:
             found_any = True
@@ -103,8 +103,10 @@ def main():
             for i in new_issues:
                 created_at = i['created_at'].replace('T', ' ').replace('Z', ' UTC')
                 obfuscated_url = i['html_url'].replace("github.com", "github\u200b.com")
+                is_maintainer = i["user"]["login"] in collaborators
+                tag = " **[M]**" if is_maintainer else ""
                 lines.append(
-                    f"- Issue {i['number']}: {i['title']} - [{obfuscated_url}](https://href.li/?{i['html_url']}) - *{created_at}*"
+                    f"- Issue {i['number']}: {i['title']}{tag} - [{obfuscated_url}](https://href.li/?{i['html_url']}) - *{created_at}*"
                 )
             lines.append("")
 
