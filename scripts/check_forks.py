@@ -68,6 +68,38 @@ def create_issue(title, body):
     with urllib.request.urlopen(req) as res:
         return json.loads(res.read())
 
+def get_issues():
+    repo_owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "Demiserular")
+    repo_name = os.environ.get("GITHUB_REPOSITORY_NAME", "isspy")
+    if "/" in os.environ.get("GITHUB_REPOSITORY", ""):
+        repo_owner, repo_name = os.environ["GITHUB_REPOSITORY"].split("/")
+    
+    try:
+        issues = gh(f"/repos/{repo_owner}/{repo_name}/issues?state=open&per_page=100")
+        return [i for i in issues if i["title"].startswith("isspy report -")]
+    except urllib.error.HTTPError as e:
+        if e.code in (404, 403):
+            return []
+        raise
+
+def delete_issue(issue_number):
+    repo_owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "Demiserular")
+    repo_name = os.environ.get("GITHUB_REPOSITORY_NAME", "isspy")
+    if "/" in os.environ.get("GITHUB_REPOSITORY", ""):
+        repo_owner, repo_name = os.environ["GITHUB_REPOSITORY"].split("/")
+    
+    req = urllib.request.Request(
+        f"https://api.github.com/repos/{repo_owner}/{repo_name}/issues/{issue_number}",
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28"
+        },
+        method="DELETE"
+    )
+    with urllib.request.urlopen(req) as res:
+        return res.status == 204
+
 def main():
     state = {}
     if os.path.exists(STATE_FILE):
@@ -75,6 +107,20 @@ def main():
             state = json.load(f)
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_dt = datetime.now(timezone.utc)
+    
+    # Delete issues older than 2 days
+    issues = get_issues()
+    for issue in issues:
+        created_at = datetime.fromisoformat(issue["created_at"].replace("Z", "+00:00"))
+        age_days = (now_dt - created_at).days
+        if age_days >= 2:
+            try:
+                delete_issue(issue["number"])
+                print(f"Deleted issue #{issue['number']} (age: {age_days} days)")
+            except Exception as e:
+                print(f"Failed to delete issue #{issue['number']}: {e}")
+    
     forks = get_all_forks()
 
     lines = [f"# isspy report", f"**Run:** {now} | **Forks scanned:** {len(forks)}\n"]
