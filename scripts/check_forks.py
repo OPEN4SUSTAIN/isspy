@@ -76,13 +76,13 @@ def get_issues():
     
     try:
         issues = gh(f"/repos/{repo_owner}/{repo_name}/issues?state=open&per_page=100")
-        return [i for i in issues if i["title"].startswith("isspy report -")]
+        return [i for i in issues if i["title"].startswith("ISSPY report -")]
     except urllib.error.HTTPError as e:
         if e.code in (404, 403):
             return []
         raise
 
-def delete_issue(issue_number):
+def close_issue(issue_number):
     repo_owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "Demiserular")
     repo_name = os.environ.get("GITHUB_REPOSITORY_NAME", "isspy")
     if "/" in os.environ.get("GITHUB_REPOSITORY", ""):
@@ -90,15 +90,16 @@ def delete_issue(issue_number):
     
     req = urllib.request.Request(
         f"https://api.github.com/repos/{repo_owner}/{repo_name}/issues/{issue_number}",
+        data=json.dumps({"state": "closed"}).encode(),
         headers={
             "Authorization": f"Bearer {TOKEN}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28"
         },
-        method="DELETE"
+        method="PATCH"
     )
     with urllib.request.urlopen(req) as res:
-        return res.status == 204
+        return json.loads(res.read())
 
 def main():
     state = {}
@@ -108,18 +109,19 @@ def main():
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     now_dt = datetime.now(timezone.utc)
+    now_readable = now_dt.strftime("%B %d, %Y at %H:%M UTC")
     
-    # Delete issues older than 2 days
+    # Close issues older than 2 days
     issues = get_issues()
     for issue in issues:
         created_at = datetime.fromisoformat(issue["created_at"].replace("Z", "+00:00"))
         age_days = (now_dt - created_at).days
         if age_days >= 2:
             try:
-                delete_issue(issue["number"])
-                print(f"Deleted issue #{issue['number']} (age: {age_days} days)")
+                close_issue(issue["number"])
+                print(f"Closed issue #{issue['number']} (age: {age_days} days)")
             except Exception as e:
-                print(f"Failed to delete issue #{issue['number']}: {e}")
+                print(f"Failed to close issue #{issue['number']}: {e}")
     
     forks = get_all_forks()
 
@@ -171,7 +173,7 @@ def main():
 
     if found_any:
         try:
-            create_issue(f"isspy report - {now}", report)
+            create_issue(f"ISSPY report - {now_readable}", report)
         except Exception as e:
             print(f"Failed to create issue: {e}")
 
