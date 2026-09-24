@@ -170,7 +170,13 @@ def main():
             f.write(report)
 
     if found_any:
-        create_issue(f"ISSPY report - {now_readable}", report)
+        try:
+            create_issue(f"ISSPY report - {now_readable}", report)
+        except urllib.error.HTTPError as e:
+            if e.code == 403:
+                print(f"Skipping issue creation due to permissions/rate-limit error (HTTP {e.code}).")
+            else:
+                raise
 
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
