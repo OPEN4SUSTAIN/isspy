@@ -17,7 +17,7 @@ jobs:
 
       - name: Run fork watcher
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ISSPY_PAT }}
         run: python scripts/check_forks.py
 
       - name: Save state
