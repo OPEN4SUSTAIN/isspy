@@ -173,7 +173,7 @@ def main():
         try:
             create_issue(f"ISSPY report - {now_readable}", report)
         except urllib.error.HTTPError as e:
-            if e.code == 403:
+            if e.code in (403, 410):
                 print(f"Skipping issue creation due to permissions/rate-limit error (HTTP {e.code}).")
             else:
                 raise
