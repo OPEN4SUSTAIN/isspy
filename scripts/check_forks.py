@@ -4,7 +4,9 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 
-TOKEN = os.environ["GH_TOKEN"]
+TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+if not TOKEN:
+    raise RuntimeError("GH_TOKEN or GITHUB_TOKEN must be configured")
 STATE_FILE = "state.json"
 AUTHORIZATION_HEADER = "Bearer " + TOKEN
 
@@ -75,13 +77,8 @@ def get_issues():
     if "/" in os.environ.get("GITHUB_REPOSITORY", ""):
         repo_owner, repo_name = os.environ["GITHUB_REPOSITORY"].split("/")
     
-    try:
-        issues = gh(f"/repos/{repo_owner}/{repo_name}/issues?state=open&per_page=100")
-        return [i for i in issues if i["title"].startswith("ISSPY report -")]
-    except urllib.error.HTTPError as e:
-        if e.code in (404, 403):
-            return []
-        raise
+    issues = gh(f"/repos/{repo_owner}/{repo_name}/issues?state=open&per_page=100")
+    return [i for i in issues if i["title"].startswith("ISSPY report -")]
 
 def close_issue(issue_number):
     repo_owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "Demiserular")
@@ -173,10 +170,7 @@ def main():
             f.write(report)
 
     if found_any:
-        try:
-            create_issue(f"ISSPY report - {now_readable}", report)
-        except Exception as e:
-            print(f"Failed to create issue: {e}")
+        create_issue(f"ISSPY report - {now_readable}", report)
 
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
